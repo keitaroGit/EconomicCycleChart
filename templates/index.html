@@ -242,6 +242,47 @@
     border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Mobile responsive (≤768px) ── */
+  @media (max-width: 768px) {
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      overflow-y: auto;
+    }
+    .right-panel {
+      display: contents;
+    }
+    .phase-card {
+      order: 1;
+      border-left: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .chart-panel {
+      order: 2;
+      padding: 12px 8px 8px;
+      justify-content: flex-start;
+    }
+    #cycle-svg {
+      max-width: 100%;
+    }
+    .legend {
+      margin-top: 8px;
+    }
+    .etf-info {
+      order: 3;
+      overflow-y: visible;
+      height: auto;
+      border-top: 1px solid var(--border);
+    }
+    .etf-placeholder {
+      height: auto;
+      padding: 20px;
+    }
+    header h1 { font-size: 1.05rem; }
+    header p  { font-size: 0.73rem; }
+  }
 </style>
 </head>
 <body>
