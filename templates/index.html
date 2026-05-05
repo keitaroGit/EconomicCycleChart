@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US ETF Economic Cycle Chart</title>
+<style>
+  :root {
+    --pink-primary: #e91e8c;
+    --pink-light: #fce4ec;
+    --pink-medium: #f48fb1;
+    --pink-dark: #c2185b;
+    --bg: #fff0f5;
+    --card-bg: #ffffff;
+    --text-primary: #2d1b33;
+    --text-secondary: #6b4c5e;
+    --border: #f9c0d9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, var(--pink-primary) 0%, var(--pink-dark) 100%);
+    color: white;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 2px 12px rgba(233,30,140,0.35);
+  }
+  header .logo {
+    width: 38px; height: 38px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  header .header-text { flex: 1; min-width: 0; }
+  header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.3px; }
+  header p  { font-size: 0.8rem; opacity: 0.85; margin-top: 1px; }
+
+  /* ── Language toggle button ── */
+  .lang-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.18);
+    border: 1.5px solid rgba(255,255,255,0.65);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .lang-btn:hover { background: rgba(255,255,255,0.32); }
+
+  /* ── Layout ── */
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    height: calc(100vh - 70px);
+  }
+
+  /* ── Chart Panel ── */
+  .chart-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 24px 12px;
+    background: var(--bg);
+  }
+  #cycle-svg {
+    width: 100%;
+    max-width: 570px;
+    height: auto;
+    filter: drop-shadow(0 6px 24px rgba(0,0,0,0.13));
+    cursor: default;
+  }
+  .etf-label { cursor: pointer; }
+  .etf-label:hover .label-rect { filter: brightness(1.08); }
+  .etf-label.active .label-rect { stroke: var(--pink-primary) !important; stroke-width: 2.5 !important; }
+  .etf-label.phase-highlight .label-rect {
+    animation: pulse-label 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse-label {
+    0%,100% { filter: brightness(1); }
+    50%      { filter: brightness(1.18) drop-shadow(0 0 6px rgba(233,30,140,0.75)); }
+  }
+  .phase-glow { transition: opacity 0.6s; }
+
+  /* ── Right Panel ── */
+  .right-panel {
+    background: var(--card-bg);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Phase card */
+  .phase-card {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--pink-light);
+  }
+  .phase-card h2 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--pink-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 9px;
+  }
+  .phase-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 9px;
+  }
+  .phase-badge .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.7);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { transform: scale(1); }
+    50%      { transform: scale(1.4); opacity: 0.7; }
+  }
+  .indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    margin-top: 7px;
+  }
+  .indicator-item {
+    background: white;
+    border-radius: 8px;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .indicator-item .ind-label { font-size: 0.68rem; color: var(--text-secondary); margin-bottom: 2px; }
+  .indicator-item .ind-value { font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
+  .fred-tip {
+    font-size: 0.71rem;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 6px;
+    border-left: 3px solid var(--pink-medium);
+  }
+  .fred-tip a { color: var(--pink-primary); }
+  #phase-desc { font-size: 0.79rem; color: #555; margin-top: 7px; line-height: 1.55; display: none; }
+
+  /* ETF info panel */
+  .etf-info { flex: 1; overflow-y: auto; }
+  .etf-placeholder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; color: var(--text-secondary); padding: 28px; text-align: center; gap: 10px;
+  }
+  .etf-placeholder .icon { font-size: 44px; opacity: 0.32; }
+  .etf-placeholder p { font-size: 0.86rem; line-height: 1.6; }
+
+  .etf-detail { display: none; }
+  .etf-detail.visible { display: block; }
+  .etf-header { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
+  .etf-ticker-row { display: flex; align-items: center; gap: 11px; margin-bottom: 5px; }
+  .etf-ticker-badge {
+    font-size: 1.35rem; font-weight: 800; color: white;
+    padding: 3px 13px; border-radius: 8px; letter-spacing: 1px; flex-shrink: 0;
+  }
+  .etf-full-name { font-size: 0.78rem; color: var(--text-secondary); }
+  .etf-name { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); line-height: 1.4; }
+  .quadrant-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 12px;
+    font-size: 0.71rem; font-weight: 600; color: white; margin-top: 5px;
+  }
+  .meta-chip {
+    display: inline-block;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 10px;
+    font-size: 0.74rem; color: var(--text-secondary); margin-top: 7px;
+  }
+  .meta-chip span { font-weight: 700; color: var(--text-primary); }
+  .etf-body { padding: 14px 18px; }
+  .info-section { margin-bottom: 14px; }
+  .info-section h3 {
+    font-size: 0.71rem; font-weight: 700; color: var(--pink-dark);
+    text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 5px;
+  }
+  .info-section p { font-size: 0.83rem; line-height: 1.6; color: var(--text-primary); }
+  .strength-box {
+    background: #e8f5e9; border-left: 3px solid #4caf50;
+    padding: 7px 11px; border-radius: 0 6px 6px 0;
+    font-size: 0.82rem; line-height: 1.6; color: #2e7d32;
+  }
+  .weakness-box {
+    background: #fce4ec; border-left: 3px solid #e91e8c;
+    padding: 7px 11px; border-radius: 0 6px 6px 0;
+    font-size: 0.82rem; line-height: 1.6; color: #880e4f;
+  }
+  .holdings-list { display: flex; flex-wrap: wrap; gap: 5px; }
+  .holding-chip {
+    background: var(--pink-light); border: 1px solid var(--border);
+    border-radius: 12px; padding: 3px 10px; font-size: 0.74rem; color: var(--text-primary);
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    justify-content: center; margin-top: 10px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.73rem; color: var(--text-secondary); }
+  .legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+  /* Scrollbar */
+  .etf-info::-webkit-scrollbar { width: 5px; }
+  .etf-info::-webkit-scrollbar-track { background: var(--pink-light); }
+  .etf-info::-webkit-scrollbar-thumb { background: var(--pink-medium); border-radius: 3px; }
+
+  .loading-spinner {
+    display: inline-block; width: 13px; height: 13px;
+    border: 2px solid rgba(233,30,140,0.25); border-top-color: var(--pink-primary);
+    border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📈</div>
+  <div class="header-text">
+    <h1>US ETF Economic Cycle Chart</h1>
+    <p id="header-sub">経済サイクルと金利環境でセクターETFを分析</p>
+  </div>
+  <button class="lang-btn" id="lang-btn" onclick="toggleLang()">EN</button>
+</header>
+
+<div class="main-layout">
+
+  <!-- Chart -->
+  <div class="chart-panel">
+    <svg id="cycle-svg" viewBox="0 0 600 610" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Glow overlays for current phase -->
+        <filter id="f-glow-g"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="f-glow-b"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="f-glow-p"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="f-glow-o"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+
+        <!-- ② Text shadow for axis / quadrant labels inside the circle -->
+        <filter id="txt-shadow" x="-15%" y="-30%" width="130%" height="160%">
+          <feDropShadow dx="0" dy="0" stdDeviation="2.2" flood-color="#000000" flood-opacity="0.72"/>
+        </filter>
+
+        <!-- Quadrant gradients -->
+        <radialGradient id="grad-g" cx="30%" cy="30%"><stop offset="0%" stop-color="#81c784"/><stop offset="100%" stop-color="#388e3c"/></radialGradient>
+        <radialGradient id="grad-b" cx="70%" cy="30%"><stop offset="0%" stop-color="#64b5f6"/><stop offset="100%" stop-color="#1565c0"/></radialGradient>
+        <radialGradient id="grad-p" cx="30%" cy="70%"><stop offset="0%" stop-color="#f48fb1"/><stop offset="100%" stop-color="#c2185b"/></radialGradient>
+        <radialGradient id="grad-o" cx="70%" cy="70%"><stop offset="0%" stop-color="#ffb74d"/><stop offset="100%" stop-color="#e65100"/></radialGradient>
+      </defs>
+
+      <!-- Phase glow overlays -->
+      <path id="glow-tl" class="phase-glow" d="M300,300 L50,300 A250,250 0 0,1 300,50 Z"  fill="#4caf50" opacity="0" filter="url(#f-glow-g)"/>
+      <path id="glow-tr" class="phase-glow" d="M300,300 L300,50 A250,250 0 0,1 550,300 Z"  fill="#2196f3" opacity="0" filter="url(#f-glow-b)"/>
+      <path id="glow-bl" class="phase-glow" d="M300,300 L300,550 A250,250 0 0,1 50,300 Z"  fill="#e91e8c" opacity="0" filter="url(#f-glow-p)"/>
+      <path id="glow-br" class="phase-glow" d="M300,300 L550,300 A250,250 0 0,1 300,550 Z" fill="#ff9800" opacity="0" filter="url(#f-glow-o)"/>
+
+      <!-- Quadrant fills -->
+      <path d="M300,300 L50,300 A250,250 0 0,1 300,50 Z"  fill="url(#grad-g)" opacity="0.88"/>
+      <path d="M300,300 L300,50 A250,250 0 0,1 550,300 Z"  fill="url(#grad-b)" opacity="0.88"/>
+      <path d="M300,300 L300,550 A250,250 0 0,1 50,300 Z"  fill="url(#grad-p)" opacity="0.88"/>
+      <path d="M300,300 L550,300 A250,250 0 0,1 300,550 Z" fill="url(#grad-o)" opacity="0.88"/>
+
+      <!-- Outer ring + axis lines -->
+      <circle cx="300" cy="300" r="250" fill="none" stroke="white" stroke-width="2.5" opacity="0.55"/>
+      <line x1="300" y1="50" x2="300" y2="550" stroke="white" stroke-width="2" opacity="0.65"/>
+      <line x1="50" y1="300" x2="550" y2="300" stroke="white" stroke-width="2" opacity="0.65"/>
+
+      <!-- Axis arrows -->
+      <polygon points="300,44 293,57 307,57" fill="white" opacity="0.8"/>
+      <polygon points="300,556 293,543 307,543" fill="white" opacity="0.8"/>
+      <polygon points="44,300 57,293 57,307" fill="white" opacity="0.8"/>
+      <polygon points="556,300 543,293 543,307" fill="white" opacity="0.8"/>
+
+      <!-- Center hub -->
+      <circle cx="300" cy="300" r="52" fill="white" opacity="0.97"/>
+      <circle cx="300" cy="300" r="52" fill="none" stroke="#ddd" stroke-width="1.5"/>
+
+      <!-- ② Axis outer labels (outside circle → dark text, clearly readable on page bg) -->
+      <text x="300" y="26"  text-anchor="middle" font-size="13" font-weight="700" fill="#1b5e20">strong economy ↑</text>
+      <text x="300" y="590" text-anchor="middle" font-size="13" font-weight="700" fill="#880e4f">↓ weak economy</text>
+
+      <!-- Side labels: was white (invisible on light bg) → now #1a1a1a -->
+      <text id="svgt-low"  x="17"  y="296" text-anchor="middle" font-size="11" font-weight="700"
+            fill="#1a1a1a" transform="rotate(-90,17,300)">low interest rates</text>
+      <text id="svgt-high" x="583" y="296" text-anchor="middle" font-size="11" font-weight="700"
+            fill="#1a1a1a" transform="rotate(90,583,300)">high interest rates</text>
+
+      <!-- ② Quadrant sub-titles inside circle → white + dark drop shadow -->
+      <text id="svgt-tl" x="115" y="80"  text-anchor="middle" font-size="10" font-weight="700"
+            fill="white" filter="url(#txt-shadow)">低金利・景気拡大</text>
+      <text id="svgt-tr" x="485" y="80"  text-anchor="middle" font-size="10" font-weight="700"
+            fill="white" filter="url(#txt-shadow)">高金利・景気拡大</text>
+      <text id="svgt-bl" x="115" y="530" text-anchor="middle" font-size="10" font-weight="700"
+            fill="white" filter="url(#txt-shadow)">低金利・景気後退</text>
+      <text id="svgt-br" x="485" y="530" text-anchor="middle" font-size="10" font-weight="700"
+            fill="white" filter="url(#txt-shadow)">高金利・景気後退</text>
+
+      <!-- deflation / inflation labels → dark shadow added -->
+      <text x="32"  y="268" text-anchor="middle" font-size="9.5" fill="white" opacity="0.9" filter="url(#txt-shadow)">(deflation)</text>
+      <text x="568" y="268" text-anchor="middle" font-size="9.5" fill="white" opacity="0.9" filter="url(#txt-shadow)">(inflation)</text>
+
+      <!-- ── ETF Labels ── -->
+      <!-- Top-left (green): XLK -->
+      <g class="etf-label" data-ticker="XLK" onclick="selectEtf('XLK')">
+        <rect class="label-rect" x="142" y="106" width="106" height="34" rx="5" fill="#c8e6c9" stroke="#81c784" stroke-width="1.5" opacity="0.95"/>
+        <text x="195" y="120" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1b5e20">Technology Stocks</text>
+        <text x="195" y="132" text-anchor="middle" font-size="11"  font-weight="800" fill="#1b5e20">XLK</text>
+      </g>
+      <!-- Top-left: VGT -->
+      <g class="etf-label" data-ticker="VGT" onclick="selectEtf('VGT')">
+        <rect class="label-rect" x="96" y="152" width="72" height="28" rx="5" fill="#c8e6c9" stroke="#81c784" stroke-width="1.5" opacity="0.95"/>
+        <text x="132" y="163" text-anchor="middle" font-size="9"   font-weight="600" fill="#1b5e20">Tech ETF</text>
+        <text x="132" y="174" text-anchor="middle" font-size="11"  font-weight="800" fill="#1b5e20">VGT</text>
+      </g>
+      <!-- Top-left: XLF -->
+      <g class="etf-label" data-ticker="XLF" onclick="selectEtf('XLF')">
+        <rect class="label-rect" x="126" y="202" width="110" height="34" rx="5" fill="#c8e6c9" stroke="#81c784" stroke-width="1.5" opacity="0.95"/>
+        <text x="181" y="216" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1b5e20">Financial Stocks</text>
+        <text x="181" y="228" text-anchor="middle" font-size="11"  font-weight="800" fill="#1b5e20">XLF</text>
+      </g>
+
+      <!-- Top-right (blue): XLI -->
+      <g class="etf-label" data-ticker="XLI" onclick="selectEtf('XLI')">
+        <rect class="label-rect" x="352" y="106" width="106" height="34" rx="5" fill="#bbdefb" stroke="#64b5f6" stroke-width="1.5" opacity="0.95"/>
+        <text x="405" y="120" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0d47a1">Industrial Stocks</text>
+        <text x="405" y="132" text-anchor="middle" font-size="11"  font-weight="800" fill="#0d47a1">XLI</text>
+      </g>
+      <!-- Top-right: XLB -->
+      <g class="etf-label" data-ticker="XLB" onclick="selectEtf('XLB')">
+        <rect class="label-rect" x="400" y="158" width="102" height="34" rx="5" fill="#bbdefb" stroke="#64b5f6" stroke-width="1.5" opacity="0.95"/>
+        <text x="451" y="172" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0d47a1">Materials Stocks</text>
+        <text x="451" y="184" text-anchor="middle" font-size="11"  font-weight="800" fill="#0d47a1">XLB</text>
+      </g>
+      <!-- Top-right: XLY -->
+      <g class="etf-label" data-ticker="XLY" onclick="selectEtf('XLY')">
+        <rect class="label-rect" x="358" y="212" width="130" height="34" rx="5" fill="#bbdefb" stroke="#64b5f6" stroke-width="1.5" opacity="0.95"/>
+        <text x="423" y="226" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0d47a1">Consumer Cyclical</text>
+        <text x="423" y="238" text-anchor="middle" font-size="11"  font-weight="800" fill="#0d47a1">XLY</text>
+      </g>
+
+      <!-- Bottom-left (pink): VOX -->
+      <g class="etf-label" data-ticker="VOX" onclick="selectEtf('VOX')">
+        <rect class="label-rect" x="94" y="282" width="122" height="34" rx="5" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.5" opacity="0.95"/>
+        <text x="155" y="296" text-anchor="middle" font-size="9.5" font-weight="700" fill="#880e4f">Communication Stocks</text>
+        <text x="155" y="308" text-anchor="middle" font-size="11"  font-weight="800" fill="#880e4f">VOX</text>
+      </g>
+      <!-- Bottom-left: XLV -->
+      <g class="etf-label" data-ticker="XLV" onclick="selectEtf('XLV')">
+        <rect class="label-rect" x="116" y="330" width="118" height="34" rx="5" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.5" opacity="0.95"/>
+        <text x="175" y="344" text-anchor="middle" font-size="9.5" font-weight="700" fill="#880e4f">Healthcare Stocks</text>
+        <text x="175" y="356" text-anchor="middle" font-size="11"  font-weight="800" fill="#880e4f">XLV</text>
+      </g>
+      <!-- Bottom-left: XLP -->
+      <g class="etf-label" data-ticker="XLP" onclick="selectEtf('XLP')">
+        <rect class="label-rect" x="88" y="378" width="148" height="34" rx="5" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.5" opacity="0.95"/>
+        <text x="162" y="392" text-anchor="middle" font-size="9.5" font-weight="700" fill="#880e4f">Consumer Defensive</text>
+        <text x="162" y="404" text-anchor="middle" font-size="11"  font-weight="800" fill="#880e4f">XLP</text>
+      </g>
+      <!-- Bottom-left: XLU -->
+      <g class="etf-label" data-ticker="XLU" onclick="selectEtf('XLU')">
+        <rect class="label-rect" x="126" y="426" width="110" height="34" rx="5" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.5" opacity="0.95"/>
+        <text x="181" y="440" text-anchor="middle" font-size="9.5" font-weight="700" fill="#880e4f">Utilities Stocks</text>
+        <text x="181" y="452" text-anchor="middle" font-size="11"  font-weight="800" fill="#880e4f">XLU</text>
+      </g>
+
+      <!-- Bottom-right (orange): XLE -->
+      <g class="etf-label" data-ticker="XLE" onclick="selectEtf('XLE')">
+        <rect class="label-rect" x="376" y="368" width="102" height="34" rx="5" fill="#ffe0b2" stroke="#ffb74d" stroke-width="1.5" opacity="0.95"/>
+        <text x="427" y="382" text-anchor="middle" font-size="9.5" font-weight="700" fill="#e65100">Energy Stocks</text>
+        <text x="427" y="394" text-anchor="middle" font-size="11"  font-weight="800" fill="#e65100">XLE</text>
+      </g>
+
+      <!-- Center: VTI -->
+      <g class="etf-label" data-ticker="VTI" onclick="selectEtf('VTI')">
+        <text x="300" y="294" text-anchor="middle" font-size="10" font-weight="700" fill="#6a1b9a">Total Market</text>
+        <text x="300" y="310" text-anchor="middle" font-size="14" font-weight="800" fill="#6a1b9a">VTI</text>
+      </g>
+
+      <!-- Current phase indicator -->
+      <g id="phase-indicator" display="none">
+        <circle id="phase-dot" r="10" fill="white" stroke="#e91e8c" stroke-width="3" opacity="0.95">
+          <animate attributeName="r" values="8;12;8" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;0.6;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <text id="phase-label" text-anchor="middle" font-size="9" font-weight="700"
+              fill="white" filter="url(#txt-shadow)" dy="25">現在</text>
+      </g>
+    </svg>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4caf50"></div><span data-li="0">強い経済・低金利</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2196f3"></div><span data-li="1">強い経済・高金利</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e91e8c"></div><span data-li="2">弱い経済・低金利</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff9800"></div><span data-li="3">弱い経済・高金利</span></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <!-- Economic Phase Card -->
+    <div class="phase-card">
+      <h2 id="phase-title">📊 現在の経済フェーズ</h2>
+      <div id="phase-badge" class="phase-badge" style="background:#9e9e9e">
+        <span class="dot"></span>
+        <span id="phase-text">データ取得中...</span>
+      </div>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <div class="ind-label" id="ind-rate-lbl">🏦 FF金利</div>
+          <div class="ind-value" id="ind-rate"><span class="loading-spinner"></span></div>
+        </div>
+        <div class="indicator-item">
+          <div class="ind-label" id="ind-gdp-lbl">📈 GDP成長率</div>
+          <div class="ind-value" id="ind-gdp"><span class="loading-spinner"></span></div>
+        </div>
+        <div class="indicator-item">
+          <div class="ind-label" id="ind-cpi-lbl">🔥 インフレ率</div>
+          <div class="ind-value" id="ind-cpi"><span class="loading-spinner"></span></div>
+        </div>
+      </div>
+      <div id="fred-setup" class="fred-tip" style="display:none">
+        💡 より詳細なデータには無料の <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank">FRED API キー</a> を
+        <code>FRED_API_KEY</code> 環境変数に設定してください。
+      </div>
+      <div id="phase-desc"></div>
+    </div>
+
+    <!-- ETF Info -->
+    <div class="etf-info">
+      <div class="etf-placeholder" id="etf-placeholder">
+        <div class="icon">💹</div>
+        <p id="ph-p1">チャート上のETFラベルをクリックすると<br>詳細情報が表示されます</p>
+        <p style="font-size:0.77rem;color:#bbb" id="ph-p2">各セクターの特徴・強い経済環境・<br>上位組入銘柄などを確認できます</p>
+      </div>
+      <div class="etf-detail" id="etf-detail">
+        <div class="etf-header">
+          <div class="etf-ticker-row">
+            <div class="etf-ticker-badge" id="detail-ticker-badge">XLK</div>
+            <div>
+              <div class="etf-full-name" id="detail-full-name"></div>
+              <div class="etf-name" id="detail-name"></div>
+            </div>
+          </div>
+          <div class="quadrant-tag" id="detail-quadrant-tag">
+            <span>📍</span><span id="detail-quadrant-text"></span>
+          </div>
+          <div class="meta-chip" id="expense-chip">経費率: <span id="detail-expense"></span></div>
+        </div>
+        <div class="etf-body">
+          <div class="info-section">
+            <h3 id="sec-overview">📋 概要</h3>
+            <p id="detail-desc"></p>
+          </div>
+          <div class="info-section">
+            <h3 id="sec-strong">✅ 強い環境</h3>
+            <div class="strength-box" id="detail-strong"></div>
+          </div>
+          <div class="info-section">
+            <h3 id="sec-weak">⚠️ 弱い環境</h3>
+            <div class="weakness-box" id="detail-weak"></div>
+          </div>
+          <div class="info-section">
+            <h3 id="sec-holdings">🏢 主要組入銘柄</h3>
+            <div class="holdings-list" id="detail-holdings"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ── Translations ── */
+const T = {
+  ja: {
+    header_sub:    '経済サイクルと金利環境でセクターETFを分析',
+    phase_title:   '📊 現在の経済フェーズ',
+    ind_rate:      '🏦 FF金利',
+    ind_gdp:       '📈 GDP成長率',
+    ind_cpi:       '🔥 インフレ率',
+    loading:       'データ取得中...',
+    error:         'データ取得エラー',
+    ph_p1:         'チャート上のETFラベルをクリックすると<br>詳細情報が表示されます',
+    ph_p2:         '各セクターの特徴・強い経済環境・<br>上位組入銘柄などを確認できます',
+    expense:       '経費率:',
+    sec_overview:  '📋 概要',
+    sec_strong:    '✅ 強い環境',
+    sec_weak:      '⚠️ 弱い環境',
+    sec_holdings:  '🏢 主要組入銘柄',
+    legend:        ['強い経済・低金利','強い経済・高金利','弱い経済・低金利','弱い経済・高金利'],
+    svg_low:       'low interest rates',
+    svg_high:      'high interest rates',
+    svg_tl: '低金利・景気拡大', svg_tr: '高金利・景気拡大',
+    svg_bl: '低金利・景気後退', svg_br: '高金利・景気後退',
+    phase_now:     '現在',
+    quadrant: {
+      'top-left':    '景気拡大・低金利',
+      'top-right':   '景気拡大・高金利',
+      'bottom-left': '景気後退・低金利',
+      'bottom-right':'景気後退・高金利',
+      'center':      '全市場', 'unknown': '不明',
+    },
+    phase_unknown: 'フェーズ判定不可',
+    fred_tip: '💡 より詳細なデータには無料の <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank">FRED API キー</a> を <code>FRED_API_KEY</code> 環境変数に設定してください。',
+    lang_btn: 'EN',
+    etf_fields: e => ({ full_name: e.full_name, desc: e.description, strong: e.strong_in, weak: e.weak_in }),
+    phase_name: info => info.name,
+    phase_desc: info => info.description,
+  },
+  en: {
+    header_sub:    'Sector ETF Analysis by Economic Cycle & Interest Rate Environment',
+    phase_title:   '📊 Current Economic Phase',
+    ind_rate:      '🏦 Fed Rate',
+    ind_gdp:       '📈 GDP Growth',
+    ind_cpi:       '🔥 Inflation',
+    loading:       'Fetching data...',
+    error:         'Data fetch error',
+    ph_p1:         'Click any ETF label on the chart<br>to view details',
+    ph_p2:         'Sector characteristics, favorable<br>environments, and top holdings',
+    expense:       'Expense Ratio:',
+    sec_overview:  '📋 Overview',
+    sec_strong:    '✅ Performs Well When',
+    sec_weak:      '⚠️ Struggles When',
+    sec_holdings:  '🏢 Top Holdings',
+    legend:        ['Strong Economy + Low Rates','Strong Economy + High Rates','Weak Economy + Low Rates','Weak Economy + High Rates'],
+    svg_low:       'low interest rates',
+    svg_high:      'high interest rates',
+    svg_tl: 'Low Rates + Expansion', svg_tr: 'High Rates + Expansion',
+    svg_bl: 'Low Rates + Recession', svg_br: 'High Rates + Recession',
+    phase_now:     'NOW',
+    quadrant: {
+      'top-left':    'Expansion + Low Rates',
+      'top-right':   'Expansion + High Rates',
+      'bottom-left': 'Recession + Low Rates',
+      'bottom-right':'Recession + High Rates',
+      'center':      'Total Market', 'unknown': 'Unknown',
+    },
+    phase_unknown: 'Phase Undetermined',
+    fred_tip: '💡 Set <code>FRED_API_KEY</code> env var to a free <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank">FRED API key</a> for GDP & CPI data.',
+    lang_btn: '日本語',
+    etf_fields: e => ({ full_name: e.en_full_name, desc: e.en_description, strong: e.en_strong_in, weak: e.en_weak_in }),
+    phase_name: info => info.en_name,
+    phase_desc: info => info.en_description,
+  },
+};
+
+const PHASE_COLORS = {
+  'top-left':    '#4caf50',
+  'top-right':   '#2196f3',
+  'bottom-left': '#e91e8c',
+  'bottom-right':'#ff9800',
+  'center':      '#9c27b0',
+  'unknown':     '#9e9e9e',
+};
+
+const PHASE_POS = {
+  'top-left':    { x: 155, y: 170 },
+  'top-right':   { x: 445, y: 170 },
+  'bottom-left': { x: 155, y: 430 },
+  'bottom-right':{ x: 445, y: 430 },
+};
+
+let lang = 'ja';
+let etfData = {};
+let lastPhaseData = null;
+let lastTicker = null;
+
+/* ── Apply translations to all static UI strings ── */
+function applyLang() {
+  const t = T[lang];
+  document.getElementById('header-sub').innerHTML      = t.header_sub;
+  document.getElementById('phase-title').textContent   = t.phase_title;
+  document.getElementById('ind-rate-lbl').textContent  = t.ind_rate;
+  document.getElementById('ind-gdp-lbl').textContent   = t.ind_gdp;
+  document.getElementById('ind-cpi-lbl').textContent   = t.ind_cpi;
+  document.getElementById('ph-p1').innerHTML           = t.ph_p1;
+  document.getElementById('ph-p2').innerHTML           = t.ph_p2;
+  document.getElementById('sec-overview').textContent  = t.sec_overview;
+  document.getElementById('sec-strong').textContent    = t.sec_strong;
+  document.getElementById('sec-weak').textContent      = t.sec_weak;
+  document.getElementById('sec-holdings').textContent  = t.sec_holdings;
+  document.getElementById('lang-btn').textContent      = t.lang_btn;
+  // expense label prefix
+  const ec = document.getElementById('expense-chip');
+  if (ec) { ec.childNodes[0].textContent = t.expense + ' '; }
+  // Legend
+  document.querySelectorAll('[data-li]').forEach(el => {
+    el.textContent = t.legend[+el.dataset.li];
+  });
+  // SVG axis labels
+  document.getElementById('svgt-low').textContent  = t.svg_low;
+  document.getElementById('svgt-high').textContent = t.svg_high;
+  document.getElementById('svgt-tl').textContent   = t.svg_tl;
+  document.getElementById('svgt-tr').textContent   = t.svg_tr;
+  document.getElementById('svgt-bl').textContent   = t.svg_bl;
+  document.getElementById('svgt-br').textContent   = t.svg_br;
+  // Phase indicator "現在" / "NOW"
+  const pl = document.getElementById('phase-label');
+  if (pl) pl.textContent = t.phase_now;
+  // FRED tip (may contain HTML)
+  const ft = document.getElementById('fred-setup');
+  if (ft && ft.style.display !== 'none') ft.innerHTML = t.fred_tip;
+  // Re-render live sections if loaded
+  if (lastPhaseData) renderPhaseInfo(lastPhaseData);
+  if (lastTicker)    renderEtfDetail(lastTicker);
+}
+
+function toggleLang() {
+  lang = lang === 'ja' ? 'en' : 'ja';
+  applyLang();
+}
+
+/* ── Data loading ── */
+async function loadData() {
+  try {
+    const r = await fetch('/api/etf-data');
+    etfData = await r.json();
+  } catch(e) { console.error('ETF data load failed', e); }
+  await loadEconomicPhase();
+}
+
+async function loadEconomicPhase() {
+  try {
+    const r = await fetch('/api/economic-phase');
+    lastPhaseData = await r.json();
+    renderPhaseInfo(lastPhaseData);
+  } catch(e) {
+    document.getElementById('phase-text').textContent = T[lang].error;
+    ['ind-rate','ind-gdp','ind-cpi'].forEach(id => document.getElementById(id).textContent = '—');
+  }
+}
+
+/* ── Render phase card ── */
+function renderPhaseInfo(data) {
+  const t    = T[lang];
+  const phase = data.phase || 'unknown';
+  const ind   = data.indicators || {};
+  const color = PHASE_COLORS[phase] || PHASE_COLORS['unknown'];
+  const info  = data.phase_info;
+
+  document.getElementById('phase-badge').style.background = color;
+  document.getElementById('phase-text').textContent =
+    info ? t.phase_name(info) : t.phase_unknown;
+
+  const setNum = (id, val, hi_thresh, lo_thresh) => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    if (val != null) {
+      el.textContent = val.toFixed(val < 10 ? 2 : 1) + '%';
+      el.style.color = val > hi_thresh ? '#d32f2f' : (lo_thresh != null && val < lo_thresh ? '#388e3c' : '#f57c00');
+    } else {
+      el.textContent = '—'; el.style.color = '#9e9e9e';
+    }
+  };
+  setNum('ind-rate', ind.fed_rate,  2.5, null);
+  setNum('ind-gdp',  ind.gdp_growth, 4, 0);
+  setNum('ind-cpi',  ind.cpi_yoy,   3,  null);
+
+  const rateEl = document.getElementById('ind-rate');
+  if (ind.fed_rate != null) {
+    rateEl.style.color = ind.fed_rate > 2.5 ? '#d32f2f' : '#388e3c';
+  }
+  const gdpEl = document.getElementById('ind-gdp');
+  if (ind.gdp_growth != null) {
+    gdpEl.textContent = (ind.gdp_growth > 0 ? '+' : '') + ind.gdp_growth.toFixed(1) + '%';
+    gdpEl.style.color = ind.gdp_growth > 2 ? '#388e3c' : (ind.gdp_growth < 0 ? '#d32f2f' : '#f57c00');
+  }
+
+  if (!ind.has_fred_key) {
+    const ft = document.getElementById('fred-setup');
+    ft.style.display = 'block';
+    ft.innerHTML = T[lang].fred_tip;
+  }
+
+  const descEl = document.getElementById('phase-desc');
+  if (info) {
+    descEl.style.display = 'block';
+    descEl.textContent = t.phase_desc(info);
+  }
+
+  highlightPhase(phase);
+  (data.phase_etfs || []).forEach(ticker => {
+    const el = document.querySelector(`.etf-label[data-ticker="${ticker}"]`);
+    if (el) el.classList.add('phase-highlight');
+  });
+  if (PHASE_POS[phase]) {
+    const pos = PHASE_POS[phase];
+    const ind2 = document.getElementById('phase-indicator');
+    ind2.setAttribute('display','block');
+    document.getElementById('phase-dot').setAttribute('cx', pos.x);
+    document.getElementById('phase-dot').setAttribute('cy', pos.y);
+    document.getElementById('phase-dot').setAttribute('stroke', color);
+    document.getElementById('phase-label').setAttribute('x', pos.x);
+    document.getElementById('phase-label').setAttribute('y', pos.y);
+    document.getElementById('phase-label').textContent = T[lang].phase_now;
+  }
+}
+
+function highlightPhase(phase) {
+  const map = { 'top-left':'glow-tl','top-right':'glow-tr','bottom-left':'glow-bl','bottom-right':'glow-br' };
+  Object.values(map).forEach(id => document.getElementById(id).style.opacity = '0');
+  if (map[phase]) { document.getElementById(map[phase]).style.opacity = '0.18'; }
+}
+
+/* ── ETF detail panel ── */
+function selectEtf(ticker) {
+  lastTicker = ticker;
+  document.querySelectorAll('.etf-label').forEach(el => el.classList.remove('active'));
+  const lbl = document.querySelector(`.etf-label[data-ticker="${ticker}"]`);
+  if (lbl) lbl.classList.add('active');
+  renderEtfDetail(ticker);
+}
+
+function renderEtfDetail(ticker) {
+  const etf = etfData[ticker];
+  if (!etf) return;
+  const t     = T[lang];
+  const color = PHASE_COLORS[etf.quadrant] || PHASE_COLORS['unknown'];
+  const f     = t.etf_fields(etf);
+
+  document.getElementById('etf-placeholder').style.display = 'none';
+  document.getElementById('etf-detail').classList.add('visible');
+
+  const badge = document.getElementById('detail-ticker-badge');
+  badge.textContent = ticker;
+  badge.style.background = color;
+
+  document.getElementById('detail-full-name').textContent = f.full_name;
+  document.getElementById('detail-name').textContent      = etf.name;
+  document.getElementById('detail-expense').textContent   = etf.expense_ratio;
+
+  const qtag = document.getElementById('detail-quadrant-tag');
+  qtag.style.background = color;
+  document.getElementById('detail-quadrant-text').textContent =
+    t.quadrant[etf.quadrant] || etf.quadrant;
+
+  document.getElementById('detail-desc').textContent   = f.desc;
+  document.getElementById('detail-strong').textContent = f.strong;
+  document.getElementById('detail-weak').textContent   = f.weak;
+
+  const holdingsEl = document.getElementById('detail-holdings');
+  holdingsEl.innerHTML = '';
+  (etf.top_holdings || []).forEach(h => {
+    const chip = document.createElement('span');
+    chip.className = 'holding-chip';
+    chip.textContent = h;
+    holdingsEl.appendChild(chip);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body>
+</html>
